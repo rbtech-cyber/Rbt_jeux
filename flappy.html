@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Flappy RBT</title>
+<style>
+  :root {
+    --bg-top: #7ec0ee;
+    --bg-bottom: #c9e8ff;
+    --panel-bg: rgba(255,255,255,0.9);
+    --panel-text: #1b2733;
+    --panel-border: #ffffff;
+    --btn-bg: #2f8fd0;
+    --btn-text: #ffffff;
+    --pipe-fill: #4caf50;
+    --pipe-edge: #2e7d32;
+    --ground-fill: #ded18f;
+    --ground-edge: #b7a865;
+    --bird-fill: #ffcc33;
+    --bird-edge: #b8860b;
+    --score-text: #ffffff;
+    --score-shadow: rgba(0,0,0,0.4);
+    --icon-fill: #1b2733;
+  }
+  [data-theme="dark"] {
+    --bg-top: #0b1220;
+    --bg-bottom: #1c2b3a;
+    --panel-bg: rgba(20,26,36,0.92);
+    --panel-text: #e8eef5;
+    --panel-border: #3a4a5c;
+    --btn-bg: #3a7bd5;
+    --btn-text: #ffffff;
+    --pipe-fill: #2e7d32;
+    --pipe-edge: #1b4d1e;
+    --ground-fill: #3a3122;
+    --ground-edge: #241d14;
+    --bird-fill: #ffcc33;
+    --bird-edge: #8a6300;
+    --score-text: #ffffff;
+    --score-shadow: rgba(0,0,0,0.6);
+    --icon-fill: #e8eef5;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; height: 100%; overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #000;
+    touch-action: none;
+    overscroll-behavior: none;
+  }
+  #app {
+    position: fixed; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: #000;
+  }
+  #gameWrap {
+    position: relative;
+    width: 100%; height: 100%;
+    max-width: 480px;
+    background: linear-gradient(to bottom, var(--bg-top), var(--bg-bottom));
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+    width: 100%; height: 100%;
+    touch-action: none;
+  }
+  .topbar {
+    position: absolute; top: 0; left: 0; right: 0;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: max(10px, env(safe-area-inset-top)) 12px 8px 12px;
+    z-index: 10;
+    pointer-events: none;
+  }
+  .iconbtn {
+    pointer-events: auto;
+    width: 42px; height: 42px;
+    border-radius: 50%;
+    border: 1px solid var(--panel-border);
+    background: var(--panel-bg);
+    color: var(--panel-text);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  }
+  .iconbtn svg { width: 22px; height: 22px; fill: var(--icon-fill); }
+  .scoreDisplay {
+    position: absolute; top: max(14px, env(safe-area-inset-top)); left: 50%;
+    transform: translateX(-50%);
+    font-size: 42px; font-weight: 800;
+    color: var(--score-text);
+    text-shadow: 0 2px 4px var(--score-shadow), 0 0 2px var(--score-shadow);
+    z-index: 5;
+    pointer-events: none;
+    font-variant-numeric: tabular-nums;
+  }
+  .overlay {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.35);
+    z-index: 20;
+    text-align: center;
+    padding: 20px;
+  }
+  .card {
+    background: var(--panel-bg);
+    color: var(--panel-text);
+    border-radius: 20px;
+    padding: 28px 26px;
+    max-width: 320px;
+    width: 100%;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+    border: 1px solid var(--panel-border);
+  }
+  .card h1 { margin: 0 0 6px 0; font-size: 26px; }
+  .card p { margin: 4px 0 18px 0; font-size: 14px; opacity: 0.8; }
+  .statsRow {
+    display: flex; justify-content: space-around; margin-bottom: 18px;
+  }
+  .statBox { text-align: center; }
+  .statBox .val { font-size: 26px; font-weight: 800; }
+  .statBox .lbl { font-size: 11px; opacity: 0.65; text-transform: uppercase; letter-spacing: 0.5px; }
+  .playBtn {
+    display: block; width: 100%;
+    padding: 14px 0;
+    border: none; border-radius: 14px;
+    background: var(--btn-bg); color: var(--btn-text);
+    font-size: 17px; font-weight: 700;
+    cursor: pointer;
+    margin-top: 4px;
+  }
+  .playBtn:active { filter: brightness(0.9); }
+  .toggleRow {
+    display: flex; gap: 10px; justify-content: center; margin-top: 16px;
+  }
+  .hint { font-size: 12px; opacity: 0.6; margin-top: 14px; }
+  .bird-emoji { font-size: 48px; margin-bottom: 6px; display: block; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="gameWrap">
+    <canvas id="game"></canvas>
+
+    <div class="scoreDisplay" id="scoreDisplay" style="display:none;">0</div>
+
+    <div class="topbar">
+      <button class="iconbtn" id="themeBtn" title="Thème">🌙</button>
+      <div style="display:flex; gap:8px;">
+        <button class="iconbtn" id="soundBtn" title="Son"></button>
+        <button class="iconbtn" id="vibeBtn" title="Vibreur"></button>
+      </div>
+    </div>
+
+    <div class="overlay" id="startOverlay">
+      <div class="card">
+        <span class="bird-emoji">🐦</span>
+        <h1>Flappy RBT</h1>
+        <p>Touchez l'écran pour voler. Évitez les tuyaux. La difficulté augmente avec le score.</p>
+        <div class="statsRow">
+          <div class="statBox"><div class="val" id="bestStart">0</div><div class="lbl">Record</div></div>
+        </div>
+        <button class="playBtn" id="startBtn">Jouer</button>
+        <div class="hint">Tapotez l'écran ou appuyez sur Espace</div>
+      </div>
+    </div>
+
+    <div class="overlay" id="overOverlay" style="display:none;">
+      <div class="card">
+        <h1>Perdu !</h1>
+        <div class="statsRow">
+          <div class="statBox"><div class="val" id="finalScore">0</div><div class="lbl">Score</div></div>
+          <div class="statBox"><div class="val" id="bestScore">0</div><div class="lbl">Record</div></div>
+        </div>
+        <button class="playBtn" id="retryBtn">Rejouer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  "use strict";
+
+  // ---------- Persistence ----------
+  var LS_BEST = "flappyrbt_best";
+  var LS_THEME = "flappyrbt_theme";
+  var LS_SOUND = "flappyrbt_sound";
+  var LS_VIBE = "flappyrbt_vibe";
+
+  var best = parseInt(localStorage.getItem(LS_BEST) || "0", 10);
+  var soundOn = localStorage.getItem(LS_SOUND) !== "0";
+  var vibeOn = localStorage.getItem(LS_VIBE) !== "0";
+
+  function applyTheme(theme) {
+    document.documentElement.setAttribute("data-theme", theme);
+    themeBtn.textContent = theme === "dark" ? "☀️" : "🌙";
+    localStorage.setItem(LS_THEME, theme);
+  }
+  var storedTheme = localStorage.getItem(LS_THEME);
+  var theme = storedTheme || (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+
+  // ---------- DOM ----------
+  var canvas = document.getElementById("game");
+  var ctx = canvas.getContext("2d");
+  var gameWrap = document.getElementById("gameWrap");
+  var scoreDisplay = document.getElementById("scoreDisplay");
+  var startOverlay = document.getElementById("startOverlay");
+  var overOverlay = document.getElementById("overOverlay");
+  var startBtn = document.getElementById("startBtn");
+  var retryBtn = document.getElementById("retryBtn");
+  var themeBtn = document.getElementById("themeBtn");
+  var soundBtn = document.getElementById("soundBtn");
+  var vibeBtn = document.getElementById("vibeBtn");
+  var bestStartEl = document.getElementById("bestStart");
+  var finalScoreEl = document.getElementById("finalScore");
+  var bestScoreEl = document.getElementById("bestScore");
+
+  applyTheme(theme);
+  bestStartEl.textContent = best;
+
+  function updateSoundBtn() { soundBtn.textContent = soundOn ? "🔊" : "🔇"; }
+  function updateVibeBtn() { vibeBtn.textContent = vibeOn ? "📳" : "📴"; }
+  updateSoundBtn();
+  updateVibeBtn();
+
+  themeBtn.addEventListener("click", function() {
+    theme = theme === "dark" ? "light" : "dark";
+    applyTheme(theme);
+  });
+  soundBtn.addEventListener("click", function() {
+    soundOn = !soundOn;
+    localStorage.setItem(LS_SOUND, soundOn ? "1" : "0");
+    updateSoundBtn();
+  });
+  vibeBtn.addEventListener("click", function() {
+    vibeOn = !vibeOn;
+    localStorage.setItem(LS_VIBE, vibeOn ? "1" : "0");
+    updateVibeBtn();
+  });
+
+  // ---------- Audio (Web Audio API, no assets) ----------
+  var audioCtx = null;
+  function ensureAudio() {
+    if (!audioCtx) {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) audioCtx = new AC();
+    }
+    if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+  }
+  function beep(freq, dur, type, vol) {
+    if (!soundOn || !audioCtx) return;
+    var osc = audioCtx.createOscillator();
+    var gain = audioCtx.createGain();
+    osc.type = type || "square";
+    osc.frequency.value = freq;
+    gain.gain.value = vol || 0.08;
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    var now = audioCtx.currentTime;
+    gain.gain.setValueAtTime(gain.gain.value, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+    osc.start(now);
+    osc.stop(now + dur);
+  }
+  function sndFlap() { beep(520, 0.08, "square", 0.06); }
+  function sndScore() { beep(880, 0.12, "sine", 0.09); }
+  function sndHit() { beep(120, 0.35, "sawtooth", 0.12); }
+
+  function vibrate(pattern) {
+    if (vibeOn && navigator.vibrate) navigator.vibrate(pattern);
+  }
+
+  // ---------- Canvas sizing ----------
+  var W, H, DPR;
+  function resize() {
+    var rect = gameWrap.getBoundingClientRect();
+    DPR = Math.min(window.devicePixelRatio || 1, 2.5);
+    W = rect.width;
+    H = rect.height;
+    canvas.width = Math.round(W * DPR);
+    canvas.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  // ---------- Game constants ----------
+  var GROUND_H = 90;
+  var BIRD_X_RATIO = 0.28;
+  var BIRD_R = 16;
+  var GRAVITY = 1500;      // px/s^2
+  var FLAP_VY = -430;      // px/s
+  var MAX_FALL_VY = 700;
+
+  var BASE_PIPE_SPEED = 150;   // px/s
+  var MAX_PIPE_SPEED = 260;
+  var BASE_GAP = 190;
+  var MIN_GAP = 130;
+  var PIPE_W = 68;
+  var BASE_SPAWN_INTERVAL = 1.55; // seconds
+  var MIN_SPAWN_INTERVAL = 1.15;
+  var DIFFICULTY_RAMP_SCORE = 20; // score at which difficulty maxes out
+
+  // ---------- Game state ----------
+  var state = "idle"; // idle | playing | dead
+  var bird, pipes, score, elapsed, spawnTimer, groundOffset;
+
+  function difficultyT() {
+    // 0 -> 1 progression based on score, capped
+    return Math.min(1, score / DIFFICULTY_RAMP_SCORE);
+  }
+  function currentSpeed() {
+    var t = difficultyT();
+    return BASE_PIPE_SPEED + (MAX_PIPE_SPEED - BASE_PIPE_SPEED) * t;
+  }
+  function currentGap() {
+    var t = difficultyT();
+    return BASE_GAP - (BASE_GAP - MIN_GAP) * t;
+  }
+  function currentSpawnInterval() {
+    var t = difficultyT();
+    return BASE_SPAWN_INTERVAL - (BASE_SPAWN_INTERVAL - MIN_SPAWN_INTERVAL) * t;
+  }
+
+  function resetGame() {
+    bird = {
+      x: W * BIRD_X_RATIO,
+      y: H * 0.42,
+      vy: 0,
+      rot: 0
+    };
+    pipes = [];
+    score = 0;
+    elapsed = 0;
+    spawnTimer = 0;
+    groundOffset = 0;
+    scoreDisplay.textContent = "0";
+  }
+
+  function spawnPipe() {
+    var gap = currentGap();
+    var margin = 40;
+    var playH = H - GROUND_H;
+    var minCenter = margin + gap / 2;
+    var maxCenter = playH - margin - gap / 2;
+    if (maxCenter < minCenter) maxCenter = minCenter;
+    var center = minCenter + Math.random() * (maxCenter - minCenter);
+    pipes.push({
+      x: W + PIPE_W,
+      gapCenter: center,
+      gap: gap,
+      passed: false
+    });
+  }
+
+  function startGame() {
+    ensureAudio();
+    resetGame();
+    state = "playing";
+    startOverlay.style.display = "none";
+    overOverlay.style.display = "none";
+    scoreDisplay.style.display = "block";
+    spawnPipe();
+    lastTime = performance.now();
+    requestAnimationFrame(loop);
+  }
+
+  function flap() {
+    if (state === "idle") { startGame(); return; }
+    if (state === "dead") return;
+    bird.vy = FLAP_VY;
+    bird.rot = -0.45;
+    sndFlap();
+    vibrate(15);
+  }
+
+  function endGame() {
+    state = "dead";
+    sndHit();
+    vibrate([30, 40, 30]);
+    if (score > best) {
+      best = score;
+      localStorage.setItem(LS_BEST, String(best));
+    }
+    finalScoreEl.textContent = score;
+    bestScoreEl.textContent = best;
+    setTimeout(function() {
+      overOverlay.style.display = "flex";
+    }, 400);
+  }
+
+  // ---------- Update / physics ----------
+  function update(dt) {
+    elapsed += dt;
+
+    // ground scroll
+    groundOffset -= currentSpeed() * dt;
+    if (groundOffset <= -40) groundOffset += 40;
+
+    // bird physics
+    bird.vy += GRAVITY * dt;
+    if (bird.vy > MAX_FALL_VY) bird.vy = MAX_FALL_VY;
+    bird.y += bird.vy * dt;
+    var targetRot = bird.vy < 0 ? -0.45 : Math.min(1.3, bird.vy / MAX_FALL_VY * 1.3);
+    bird.rot += (targetRot - bird.rot) * Math.min(1, dt * 8);
+
+    // ceiling
+    if (bird.y - BIRD_R < 0) {
+      bird.y = BIRD_R;
+      bird.vy = 0;
+    }
+    // ground collision
+    if (bird.y + BIRD_R > H - GROUND_H) {
+      bird.y = H - GROUND_H - BIRD_R;
+      endGame();
+      return;
+    }
+
+    // pipes
+    var speed = currentSpeed();
+    for (var i = pipes.length - 1; i >= 0; i--) {
+      var p = pipes[i];
+      p.x -= speed * dt;
+
+      // scoring
+      if (!p.passed && p.x + PIPE_W < bird.x) {
+        p.passed = true;
+        score++;
+        scoreDisplay.textContent = score;
+        sndScore();
+      }
+
+      // collision (circle vs two rects)
+      var topRectBottom = p.gapCenter - p.gap / 2;
+      var botRectTop = p.gapCenter + p.gap / 2;
+      if (circleRectCollide(bird.x, bird.y, BIRD_R, p.x, 0, PIPE_W, topRectBottom) ||
+          circleRectCollide(bird.x, bird.y, BIRD_R, p.x, botRectTop, PIPE_W, H - GROUND_H - botRectTop)) {
+        endGame();
+        return;
+      }
+
+      if (p.x + PIPE_W < -10) {
+        pipes.splice(i, 1);
+      }
+    }
+
+    // spawn
+    spawnTimer += dt;
+    var interval = currentSpawnInterval();
+    if (spawnTimer >= interval) {
+      spawnTimer = 0;
+      spawnPipe();
+    }
+  }
+
+  function circleRectCollide(cx, cy, r, rx, ry, rw, rh) {
+    var closestX = Math.max(rx, Math.min(cx, rx + rw));
+    var closestY = Math.max(ry, Math.min(cy, ry + rh));
+    var dx = cx - closestX;
+    var dy = cy - closestY;
+    return (dx * dx + dy * dy) < (r * r);
+  }
+
+  // ---------- Rendering ----------
+  var cssTheme = {};
+  function readCssVar(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+  function refreshColors() {
+    cssTheme.pipeFill = readCssVar("--pipe-fill");
+    cssTheme.pipeEdge = readCssVar("--pipe-edge");
+    cssTheme.groundFill = readCssVar("--ground-fill");
+    cssTheme.groundEdge = readCssVar("--ground-edge");
+    cssTheme.birdFill = readCssVar("--bird-fill");
+    cssTheme.birdEdge = readCssVar("--bird-edge");
+  }
+  refreshColors();
+  var themeObserver = new MutationObserver(refreshColors);
+  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+  function drawPipe(p) {
+    var topH = p.gapCenter - p.gap / 2;
+    var botY = p.gapCenter + p.gap / 2;
+    var botH = (H - GROUND_H) - botY;
+
+    ctx.fillStyle = cssTheme.pipeFill;
+    ctx.strokeStyle = cssTheme.pipeEdge;
+    ctx.lineWidth = 3;
+
+    // top pipe
+    ctx.fillRect(p.x, 0, PIPE_W, topH);
+    ctx.strokeRect(p.x, 0, PIPE_W, topH);
+    ctx.fillRect(p.x - 4, topH - 22, PIPE_W + 8, 22);
+    ctx.strokeRect(p.x - 4, topH - 22, PIPE_W + 8, 22);
+
+    // bottom pipe
+    ctx.fillRect(p.x, botY, PIPE_W, botH);
+    ctx.strokeRect(p.x, botY, PIPE_W, botH);
+    ctx.fillRect(p.x - 4, botY, PIPE_W + 8, 22);
+    ctx.strokeRect(p.x - 4, botY, PIPE_W + 8, 22);
+  }
+
+  function drawGround() {
+    ctx.fillStyle = cssTheme.groundFill;
+    ctx.fillRect(0, H - GROUND_H, W, GROUND_H);
+    ctx.strokeStyle = cssTheme.groundEdge;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(0, H - GROUND_H);
+    ctx.lineTo(W, H - GROUND_H);
+    ctx.stroke();
+
+    ctx.fillStyle = cssTheme.groundEdge;
+    for (var x = groundOffset; x < W + 40; x += 40) {
+      ctx.fillRect(x, H - GROUND_H + 14, 20, 6);
+    }
+  }
+
+  function drawBird() {
+    ctx.save();
+    ctx.translate(bird.x, bird.y);
+    ctx.rotate(bird.rot);
+    ctx.fillStyle = cssTheme.birdFill;
+    ctx.strokeStyle = cssTheme.birdEdge;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, BIRD_R, BIRD_R * 0.82, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    // wing
+    ctx.fillStyle = cssTheme.birdEdge;
+    ctx.beginPath();
+    ctx.ellipse(-2, 3, 7, 5, 0.3, 0, Math.PI * 2);
+    ctx.fill();
+    // eye
+    ctx.fillStyle = "#1b2733";
+    ctx.beginPath();
+    ctx.arc(7, -5, 2.6, 0, Math.PI * 2);
+    ctx.fill();
+    // beak
+    ctx.fillStyle = "#e8811a";
+    ctx.beginPath();
+    ctx.moveTo(12, -1);
+    ctx.lineTo(22, 2);
+    ctx.lineTo(12, 6);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function render() {
+    ctx.clearRect(0, 0, W, H);
+    for (var i = 0; i < pipes.length; i++) drawPipe(pipes[i]);
+    drawGround();
+    if (state !== "idle") drawBird();
+  }
+
+  // ---------- Main loop ----------
+  var lastTime = 0;
+  var MAX_DT = 1 / 30;
+  function loop(now) {
+    if (state !== "playing") {
+      if (state === "dead") render();
+      return;
+    }
+    var dt = Math.min(MAX_DT, (now - lastTime) / 1000);
+    lastTime = now;
+    update(dt);
+    if (state === "playing") {
+      render();
+      requestAnimationFrame(loop);
+    } else {
+      render();
+    }
+  }
+
+  // ---------- Input ----------
+  function onTap(e) {
+    if (e) e.preventDefault();
+    if (state === "playing") flap();
+  }
+  canvas.addEventListener("pointerdown", onTap);
+  document.addEventListener("keydown", function(e) {
+    if (e.code === "Space") {
+      e.preventDefault();
+      if (state === "playing") flap();
+      else if (state === "idle") startGame();
+    }
+  });
+
+  startBtn.addEventListener("click", function(e) {
+    e.stopPropagation();
+    startGame();
+  });
+  retryBtn.addEventListener("click", function(e) {
+    e.stopPropagation();
+    startGame();
+  });
+
+  // initial idle render (empty scene)
+  state = "idle";
+  bird = { x: W * BIRD_X_RATIO, y: H * 0.42, vy: 0, rot: 0 };
+  pipes = [];
+  render();
+})();
+</script>
+</body>
+</html>
